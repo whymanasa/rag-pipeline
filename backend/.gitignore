@@ -1,3 +1,4 @@
 .env
 node_modules
 ready_for_pinecone.csv
+ready_for_pinecone_10k.csv
