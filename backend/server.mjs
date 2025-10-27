@@ -6,7 +6,7 @@ import fetch from 'node-fetch'; // For calling Azure OpenAI API
 
 // --- Configuration ---
 const PORT = process.env.PORT || 4000;
-const TOP_K_RESULTS = 5; // How many relevant results to fetch from Pinecone
+const TOP_K_RESULTS = 10; // How many relevant results to fetch from Pinecone
 
 // --- Initialize Pinecone ---
 const pc = new Pinecone(); // API key automatically read from PINECONE_API_KEY
@@ -84,15 +84,38 @@ app.post('/api/chat', async (req, res) => {
 
         // --- Step 4: Generate Answer (Azure OpenAI API via fetch) ---
         console.log("   Generating answer with Azure OpenAI...");
+        
+        // Construct the single, structured prompt for Azure OpenAI
+        const fullPrompt = `You are an AI assistant specialized in restaurants in Bengaluru, India. Your knowledge is strictly limited to the information provided in the 'CONTEXT' section below. Do not use any outside knowledge or provide information not explicitly mentioned in the context.
+
+CONTEXT:
+---
+${context}
+---
+
+QUESTION:
+${userQuery}
+
+INSTRUCTIONS:
+1. **Analyze Context:** Carefully read the CONTEXT provided above.
+2. **Answer from Context Only:** Answer the user's QUESTION using *only* the details found within the CONTEXT section. Do not infer or add external information.
+3. **Direct & Specific Answer:** If the CONTEXT directly answers the QUESTION, provide a concise answer (aim for 2-4 sentences). Mention specific restaurant names, locations (areas), cuisines, costs, or popular dishes as found in the context.
+4. **Partial Information:** If the CONTEXT provides some relevant information but doesn't fully answer the QUESTION, state clearly what you found and what's missing. Start your response like: "Based on the available data, I found that..."
+5. **No Information:** If the CONTEXT does not contain *any* relevant information to answer the QUESTION, respond *only* with: "I couldn't find specific information about that in the provided restaurant data." Do not apologize or offer to search elsewhere.
+6. **Multiple Matches:** If several restaurants in the CONTEXT match the query (e.g., multiple restaurants in an area), list the top 2-3 most relevant ones mentioned in the context.
+7. **Clarity:** Use clear language. Mention restaurant names and areas distinctly.
+
+ANSWER:`;
+
         const messages = [
-            { role: "system", content: `You are a helpful assistant specialized in Bengaluru restaurants. Your knowledge is based *only* on the provided context snippets. Answer the user's question concisely using *only* information from the context. If the context doesn't contain the answer, clearly state that the provided data doesn't have that information.` },
-            { role: "user", content: `Based on the following information:\n\nContext:\n${context}\n\n---\n\nAnswer this question: ${userQuery}` }
+            { role: "user", content: fullPrompt }
         ];
 
         const azureRequestBody = {
             messages: messages,
-            max_tokens: 150,
-            temperature: 0.3,
+            max_tokens: 250,      // Increased for more detailed responses
+            temperature: 0.2,     // Lower temperature for more focused, factual responses (optimal for RAG)
+            top_p: 0.95,          // Nucleus sampling for better coherence
         };
 
         const azureResponse = await fetch(azureApiUrl, {
